@@ -88,6 +88,20 @@ Supabase pada proyek ini hanya akan menjadi **host database PostgreSQL**. Backen
      ```
 
    - Perintah ini membuat tabel sesuai migrasi proyek. Jangan menjalankan migrasi awal pada database yang sudah berisi tabel aplikasi tanpa meninjau skema terlebih dahulu.
+   - Sebelum menjalankan migrasi, Anda boleh memeriksa jenis database yang benar-benar terbaca. Perintah ini hanya menampilkan jenis URL, bukan password atau connection string:
+
+     ```powershell
+     python -c "from app.config import settings; print(settings.database_url.split('://', 1)[0])"
+     ```
+
+     Hasil untuk Supabase harus `postgresql+psycopg`. Jika hasilnya `sqlite`, perintah akan menuju database lokal. Pastikan PowerShell berada di folder proyek. Jika `.env` sudah berisi Supabase tetapi hasil masih `sqlite`, hapus hanya environment variable lama dari sesi PowerShell, lalu periksa ulang:
+
+     ```powershell
+     Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+     python -c "from app.config import settings; print(settings.database_url.split('://', 1)[0])"
+     ```
+
+     Environment variable PowerShell yang sudah disetel dapat mengalahkan nilai di `.env`. Jangan jalankan `alembic stamp` atau menghapus tabel SQLite sebagai cara memperbaiki target database yang salah.
 5. Setelah selesai migrasi, kembalikan `DATABASE_URL` di `.env` ke SQLite jika Anda ingin pengembangan harian tetap lokal. Jangan mengubah `.env.example` untuk menyimpan connection string asli.
 
 ## C. Render: jalankan backend di internet (setelah Supabase dan GitHub siap)
@@ -148,6 +162,8 @@ Saat lokal, FastAPI berjalan di komputer dan database default-nya berupa file SQ
 - `ModuleNotFoundError`: aktifkan `.venv`, lalu jalankan `python -m pip install -r requirements.txt`.
 - `Invalid or missing API key`: pastikan key yang sama dikirim sebagai header `X-API-Key`; jangan menambahkan tanda `< >` pada nilainya.
 - `API key protection is not configured`: di Render, isi `API_KEY` lalu deploy ulang.
+- Log Alembic bertuliskan `Context impl SQLiteImpl` atau `table courses already exists`: migrasi sedang menuju SQLite lokal, bukan Supabase. Jalankan pemeriksaan jenis URL di bagian B. Jangan menghapus tabel lokal.
+- `could not resolve host` saat memakai URL PostgreSQL: periksa kembali connection string melalui tombol **Connect** di Supabase dan koneksi internet/DNS. Jika direct connection tidak dapat dijangkau dari jaringan IPv4, coba Session pooler.
 - Error login/koneksi PostgreSQL: periksa `DATABASE_URL` di Render, database password, mode koneksi, dan SSL. Jangan mengirim connection string ke chat untuk diperiksa.
 - Error tabel tidak ditemukan: pastikan migrasi `python -m alembic upgrade head` sudah berhasil dijalankan pada database Supabase yang benar.
 - Jika ingin kembali ke lokal, pastikan `.env` menggunakan `DATABASE_URL=sqlite:///./course_usage.db` dan `ENVIRONMENT=development`.
