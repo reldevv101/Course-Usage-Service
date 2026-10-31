@@ -10,6 +10,7 @@ Backend REST API sederhana untuk mengelola course, mencatat pemakaian belajar ma
 | `.env.example` | Contoh nama dan nilai awal konfigurasi, aman dibagikan | Tidak perlu diisi. Jangan menaruh password atau key sungguhan di sini. |
 | `requirements.txt` | Daftar paket Python yang diperlukan | Tidak perlu diubah untuk menjalankan aplikasi. |
 | `app/config.py` | Membaca isi `.env` dan nilai konfigurasi | Jangan ubah untuk setup normal. |
+| `frontend/` | Halaman web sederhana untuk login dan memakai API | Jalankan lokal atau deploy sebagai proyek frontend Vercel terpisah. |
 | `app/security.py` | Memeriksa token login dan role pengguna | Jangan ubah untuk setup normal. |
 | `migrations/` | Instruksi pembuatan skema database PostgreSQL | Dipakai saat menyiapkan database Supabase. |
 | `.gitignore` | Mencegah `.env`, database lokal, dan virtual environment masuk Git | Pastikan file ini tetap ada. |
@@ -67,6 +68,7 @@ QUIZ_RATE_PER_COMPLETION=1000
 
 - `DATABASE_URL`: alamat database. Nilai SQLite di atas berarti data disimpan ke file `course_usage.db` di folder proyek.
 - `DB_POOL_MODE`: gunakan `session` untuk SQLite dan Supabase Session pooler; `transaction` khusus untuk Supabase Transaction pooler pada serverless Vercel.
+- `FRONTEND_ORIGINS`: alamat website frontend yang boleh memanggil backend. Nilai default mengizinkan frontend lokal; tambahkan domain frontend Vercel di pengaturan backend saat deploy.
 - `ENVIRONMENT=development`: mode lokal.
 - `JWT_SECRET_KEY`: rahasia untuk menandatangani token login. Buat nilai acak dan simpan hanya di `.env` lokal dan Vercel.
 - Tiga `*_RATE_*`: tarif simulasi. Biarkan nilainya seperti contoh bila tidak ingin mengubah harga.
@@ -182,11 +184,46 @@ FastAPI Function di Vercel ── DATABASE_URL ──► PostgreSQL di Supabase
 
 Saat lokal, FastAPI berjalan di komputer dan database default-nya berupa file SQLite.
 
-## E. Bantuan jika ada masalah
+## E. Frontend sederhana
+
+Folder `frontend/` berisi tampilan web tanpa framework atau paket tambahan: login, dashboard sesuai role, course, pencatatan usage, invoice, pembuatan akun mahasiswa, dan ganti password. Frontend tidak menyimpan koneksi Supabase atau `JWT_SECRET_KEY`; token login hanya disimpan di session browser. Alamat backend publik diatur di `frontend/config.js`.
+
+### Jalankan frontend lokal
+
+1. Pastikan `.env` lokal memakai SQLite (`DATABASE_URL=sqlite:///./course_usage.db`), `ENVIRONMENT=development`, dan sudah memiliki `JWT_SECRET_KEY` acak.
+2. Buat akun admin lokal satu kali bila database lokal belum memiliki admin:
+
+   ```powershell
+   python -m app.create_admin
+   ```
+
+3. Buka PowerShell pertama, aktifkan `.venv`, lalu jalankan backend:
+
+   ```powershell
+   .\.venv\Scripts\Activate.ps1
+   python -m uvicorn app.main:app --reload
+   ```
+
+4. Buka PowerShell kedua pada folder proyek dan jalankan server file frontend:
+
+   ```powershell
+   python -m http.server 5173 --directory frontend
+   ```
+
+5. Buka [http://127.0.0.1:5173](http://127.0.0.1:5173), lalu login dengan akun admin lokal. Frontend lokal otomatis mengarah ke API lokal `http://127.0.0.1:8000`.
+
+### Deploy frontend ke Vercel
+
+Frontend dan backend memakai folder yang sama di GitHub, tetapi dibuat sebagai **dua proyek Vercel**. Pada Vercel pilih **Add New → Project**, impor repository yang sama, lalu set **Root Directory** menjadi `frontend`. Pilih preset **Other** dan biarkan build command kosong. Domain frontend yang diberikan Vercel perlu dimasukkan ke environment variable backend `FRONTEND_ORIGINS`, misalnya `https://nama-frontend.vercel.app`, lalu redeploy backend. Nilai ini bukan rahasia. Untuk memakai domain frontend lain, ubah alamat production API di `frontend/config.js`.
+
+Jangan mengaktifkan Preview untuk memakai database Production tanpa sengaja. Deploy frontend Production, tambahkan origin Production tersebut ke backend, lalu uji login dan role dari browser.
+
+## F. Bantuan jika ada masalah
 
 - `ModuleNotFoundError`: aktifkan `.venv`, lalu jalankan `python -m pip install -r requirements.txt`.
 - `JWT_SECRET_KEY is not configured`: tambahkan `JWT_SECRET_KEY` pada Production di Vercel, lalu redeploy.
 - `Invalid or expired access token`: login kembali dan gunakan header `Authorization: Bearer <token>`.
+- Pesan CORS di browser: pastikan URL frontend tepat dicantumkan pada `FRONTEND_ORIGINS` di Vercel backend, termasuk `https://` dan tanpa garis miring di akhir, lalu redeploy backend.
 - Log Alembic bertuliskan `Context impl SQLiteImpl` atau `table courses already exists`: migrasi sedang menuju SQLite lokal, bukan Supabase. Jalankan pemeriksaan jenis URL di bagian B. Jangan menghapus tabel lokal.
 - `could not resolve host` saat memakai URL PostgreSQL: periksa kembali connection string melalui tombol **Connect** di Supabase dan koneksi internet/DNS. Jika direct connection tidak dapat dijangkau dari jaringan IPv4, coba Session pooler.
 - Error koneksi PostgreSQL di Vercel: pastikan `DATABASE_URL` memakai Transaction pooler dari tombol Connect Supabase (biasanya port `6543`), `DB_POOL_MODE=transaction`, password benar, dan variabel sudah diset untuk environment deployment. Jangan mengirim connection string ke chat untuk diperiksa.
