@@ -15,7 +15,9 @@ if engine.url.drivername.startswith("sqlite"):
         cursor.close()
 
 
-if settings.environment == "development":
+if settings.environment == "development" and engine.url.drivername.startswith("sqlite"):
+    # Local SQLite is convenient for first-run development. PostgreSQL schemas
+    # must be changed only through Alembic migrations.
     Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
