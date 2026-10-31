@@ -6,11 +6,11 @@ Backend REST API sederhana untuk mengelola course, mencatat pemakaian belajar ma
 
 | File | Kegunaan | Perlu diubah sekarang? |
 |---|---|---|
-| `.env` | Konfigurasi lokal yang dibaca aplikasi, termasuk database dan API key | Periksa nilainya sebelum menjalankan; file ini tidak diunggah ke GitHub. |
+| `.env` | Konfigurasi lokal yang dibaca aplikasi, termasuk database dan JWT secret | Periksa nilainya sebelum menjalankan; file ini tidak diunggah ke GitHub. |
 | `.env.example` | Contoh nama dan nilai awal konfigurasi, aman dibagikan | Tidak perlu diisi. Jangan menaruh password atau key sungguhan di sini. |
 | `requirements.txt` | Daftar paket Python yang diperlukan | Tidak perlu diubah untuk menjalankan aplikasi. |
 | `app/config.py` | Membaca isi `.env` dan nilai konfigurasi | Jangan ubah untuk setup normal. |
-| `app/security.py` | Memeriksa `X-API-Key` pada route yang dilindungi | Jangan ubah untuk setup normal. |
+| `app/security.py` | Memeriksa token login dan role pengguna | Jangan ubah untuk setup normal. |
 | `migrations/` | Instruksi pembuatan skema database PostgreSQL | Dipakai saat menyiapkan database Supabase. |
 | `.gitignore` | Mencegah `.env`, database lokal, dan virtual environment masuk Git | Pastikan file ini tetap ada. |
 
@@ -59,7 +59,7 @@ Untuk menjalankan API lokal, komputer tidak memerlukan akun hosting. Proyek mend
 DATABASE_URL=sqlite:///./course_usage.db
 ENVIRONMENT=development
 DB_POOL_MODE=session
-API_KEY=
+JWT_SECRET_KEY=
 STUDY_RATE_PER_HOUR=2000
 MATERIAL_RATE_PER_ACCESS=500
 QUIZ_RATE_PER_COMPLETION=1000
@@ -67,9 +67,15 @@ QUIZ_RATE_PER_COMPLETION=1000
 
 - `DATABASE_URL`: alamat database. Nilai SQLite di atas berarti data disimpan ke file `course_usage.db` di folder proyek.
 - `DB_POOL_MODE`: gunakan `session` untuk SQLite dan Supabase Session pooler; `transaction` khusus untuk Supabase Transaction pooler pada serverless Vercel.
-- `ENVIRONMENT=development`: mode lokal. Dalam mode ini route yang nanti dilindungi tidak meminta API key.
-- `API_KEY`: boleh kosong saat lokal. Ini adalah kunci akses sederhana milik aplikasi, bukan kunci Supabase.
+- `ENVIRONMENT=development`: mode lokal.
+- `JWT_SECRET_KEY`: rahasia untuk menandatangani token login. Buat nilai acak dan simpan hanya di `.env` lokal dan Vercel.
 - Tiga `*_RATE_*`: tarif simulasi. Biarkan nilainya seperti contoh bila tidak ingin mengubah harga.
+
+Buat nilai `JWT_SECRET_KEY` dengan perintah di bawah ini. Isi hasilnya di `.env` lokal; di Vercel gunakan nama variable yang sama.
+
+```powershell
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
 
 SQLite dan Supabase adalah dua pilihan database yang berbeda; SQLite tidak mengirim data ke internet. Untuk kerja lokal yang tetap memakai Supabase, gunakan Session pooler seperti setup migrasi Anda.
 
@@ -125,26 +131,45 @@ Pastikan repository proyek sudah ada di GitHub dan `.env`, `course_usage.db`, se
    | `DATABASE_URL` | Connection string Supabase **Transaction pooler** dari tombol **Connect**. Ini rahasia; jangan memakai Session pooler untuk Vercel. |
    | `DB_POOL_MODE` | `transaction` |
    | `ENVIRONMENT` | `production` |
-   | `API_KEY` | Key rahasia acak untuk header `X-API-Key`; jangan gunakan password database. |
+   | `JWT_SECRET_KEY` | Secret acak untuk token login; jangan gunakan password database. |
 
-   Buat API key acak di PowerShell:
+   Buat secret JWT acak di PowerShell:
 
    ```powershell
-   python -c "import secrets; print(secrets.token_urlsafe(32))"
+   python -c "import secrets; print(secrets.token_urlsafe(48))"
    ```
 
-   Salin output ke value `API_KEY` Vercel dan simpan untuk Postman. Jangan tulis key atau connection string asli pada README, `.env.example`, atau GitHub. Tidak perlu menambahkan `SUPABASE_URL` atau `SUPABASE_KEY`; aplikasi memakai koneksi PostgreSQL langsung.
+   Simpan output sebagai value `JWT_SECRET_KEY` di Vercel. Jangan tulis secret atau connection string asli pada README, `.env.example`, atau GitHub. Tidak perlu menambahkan `SUPABASE_URL` atau `SUPABASE_KEY`; aplikasi memakai koneksi PostgreSQL langsung.
 
-4. Klik **Deploy**. Setelah build selesai, buka URL deployment dan periksa `/health`, lalu `/docs`. Vercel mengelola runtime function sehingga tidak ada perintah `uvicorn` yang perlu diisi.
-5. Untuk endpoint yang dilindungi, tambahkan header berikut pada Postman:
+4. Sebelum memakai fitur login, aktifkan `.venv`, pastikan `.env` lokal menunjuk ke database Supabase yang benar dan `DB_POOL_MODE=session`, lalu pasang dependensi terbaru:
 
-   ```text
-   X-API-Key: <API_KEY yang Anda simpan>
+   ```powershell
+   python -m pip install -r requirements.txt
    ```
 
-   Route usage dan invoice serta operasi create/update/delete course memerlukan key saat `ENVIRONMENT=production`. `GET /health` dan pembacaan daftar/detail course tidak memerlukannya. Key ini satu kunci bersama untuk demo, bukan login admin dan mahasiswa.
+5. Jalankan migrasi baru satu kali:
 
-6. Skema Supabase sudah dibuat dengan Alembic pada tahap setup sebelumnya. Jangan menjalankan migrasi awal lagi setiap kali deploy. Jika kelak ada migrasi baru, jalankan secara terencana dari komputer lokal terhadap database yang benar.
+   ```powershell
+   python -m alembic upgrade head
+   ```
+
+   Migrasi ini menambahkan tabel `users`; tabel course, usage, dan invoice yang lama tetap dipertahankan.
+
+6. Buat akun admin pertama dari komputer lokal dengan `.env` yang masih menunjuk ke database Supabase:
+
+   ```powershell
+   python -m app.create_admin
+   ```
+
+   Program meminta username dan password dengan input tersembunyi, kemudian menyimpan hash password. Admin tidak dibuat lewat pendaftaran publik. Jangan jalankan sebelum migrasi berhasil.
+
+7. Kirim kode terbaru ke GitHub agar Vercel melakukan deploy otomatis. Setelah deployment berstatus **Ready**, buka `/health`, lalu `/docs`. Vercel mengelola runtime function, jadi tidak ada perintah `uvicorn` yang perlu diisi.
+
+8. Login melalui `POST /api/v1/auth/login` memakai username dan password. Di `/docs`, salin `access_token` dari hasil login, klik **Authorize**, lalu tempel token. Di Postman kirim header `Authorization: Bearer <access_token>`. Token berlaku 60 menit.
+
+9. Setelah login sebagai admin, gunakan `POST /api/v1/admin/students` untuk membuat akun mahasiswa. Mahasiswa dapat login dan mengganti password lewat `PUT /api/v1/auth/password`.
+
+10. Mahasiswa hanya dapat membuat dan melihat usage miliknya serta melihat invoice miliknya. Admin dapat mengelola course, melihat semua usage/invoice, dan membuat invoice.
 
 ## D. Gambaran hubungan komponennya
 
@@ -160,14 +185,14 @@ Saat lokal, FastAPI berjalan di komputer dan database default-nya berupa file SQ
 ## E. Bantuan jika ada masalah
 
 - `ModuleNotFoundError`: aktifkan `.venv`, lalu jalankan `python -m pip install -r requirements.txt`.
-- `Invalid or missing API key`: pastikan key yang sama dikirim sebagai header `X-API-Key`; jangan menambahkan tanda `< >` pada nilainya.
-- `API key protection is not configured`: di Vercel, isi `API_KEY` untuk environment yang dipakai lalu redeploy.
+- `JWT_SECRET_KEY is not configured`: tambahkan `JWT_SECRET_KEY` pada Production di Vercel, lalu redeploy.
+- `Invalid or expired access token`: login kembali dan gunakan header `Authorization: Bearer <token>`.
 - Log Alembic bertuliskan `Context impl SQLiteImpl` atau `table courses already exists`: migrasi sedang menuju SQLite lokal, bukan Supabase. Jalankan pemeriksaan jenis URL di bagian B. Jangan menghapus tabel lokal.
 - `could not resolve host` saat memakai URL PostgreSQL: periksa kembali connection string melalui tombol **Connect** di Supabase dan koneksi internet/DNS. Jika direct connection tidak dapat dijangkau dari jaringan IPv4, coba Session pooler.
 - Error koneksi PostgreSQL di Vercel: pastikan `DATABASE_URL` memakai Transaction pooler dari tombol Connect Supabase (biasanya port `6543`), `DB_POOL_MODE=transaction`, password benar, dan variabel sudah diset untuk environment deployment. Jangan mengirim connection string ke chat untuk diperiksa.
 - Error tabel tidak ditemukan: pastikan migrasi `python -m alembic upgrade head` sudah berhasil dijalankan pada database Supabase yang benar.
 - Jika ingin kembali ke lokal, pastikan `.env` menggunakan `DATABASE_URL=sqlite:///./course_usage.db` dan `ENVIRONMENT=development`.
 
-## Batasan dan pengembangan selanjutnya
+## Batasan
 
-Login admin/user belum dibuat. API key di atas hanya gate sederhana untuk deployment demo dan tidak memberi identitas atau hak berbeda per mahasiswa. Login berikutnya perlu akun, password hashing, token, role admin/user, dan pembatasan agar mahasiswa hanya dapat melihat data miliknya. Pembayaran dan frontend tidak termasuk versi pertama.
+Login memakai access token 60 menit tanpa refresh token atau reset password melalui email. Admin membuat akun mahasiswa; pendaftaran terbuka tidak disediakan. Pembayaran nyata dan frontend belum termasuk versi ini.

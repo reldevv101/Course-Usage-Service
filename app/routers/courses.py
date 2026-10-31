@@ -6,12 +6,12 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Course
 from app.schemas import CourseCreate, CourseOut, CoursePatch
-from app.security import require_api_key
+from app.security import require_roles
 
 router = APIRouter(prefix="/api/v1/courses", tags=["courses"])
 
 
-@router.post("", response_model=CourseOut, status_code=201, dependencies=[Depends(require_api_key)])
+@router.post("", response_model=CourseOut, status_code=201, dependencies=[Depends(require_roles("admin"))])
 def create_course(payload: CourseCreate, db: Session = Depends(get_db)):
     course = Course(**payload.model_dump())
     db.add(course)
@@ -40,7 +40,7 @@ def get_course(course_id: str, db: Session = Depends(get_db)):
     return course
 
 
-@router.put("/{course_id}", response_model=CourseOut, dependencies=[Depends(require_api_key)])
+@router.put("/{course_id}", response_model=CourseOut, dependencies=[Depends(require_roles("admin"))])
 def replace_course(course_id: str, payload: CourseCreate, db: Session = Depends(get_db)):
     course = db.get(Course, course_id)
     if not course:
@@ -56,7 +56,7 @@ def replace_course(course_id: str, payload: CourseCreate, db: Session = Depends(
     return course
 
 
-@router.patch("/{course_id}", response_model=CourseOut, dependencies=[Depends(require_api_key)])
+@router.patch("/{course_id}", response_model=CourseOut, dependencies=[Depends(require_roles("admin"))])
 def patch_course(course_id: str, payload: CoursePatch, db: Session = Depends(get_db)):
     course = db.get(Course, course_id)
     if not course:
@@ -76,7 +76,7 @@ def patch_course(course_id: str, payload: CoursePatch, db: Session = Depends(get
     return course
 
 
-@router.delete("/{course_id}", status_code=204, dependencies=[Depends(require_api_key)])
+@router.delete("/{course_id}", status_code=204, dependencies=[Depends(require_roles("admin"))])
 def delete_course(course_id: str, db: Session = Depends(get_db)):
     course = db.get(Course, course_id)
     if not course:

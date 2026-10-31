@@ -25,6 +25,22 @@ class Course(Base):
     usage_records: Mapped[list["UsageRecord"]] = relationship(back_populates="course")
 
 
+class User(Base):
+    __tablename__ = "users"
+    __table_args__ = (
+        CheckConstraint("role IN ('admin', 'student')", name="ck_users_role"),
+        CheckConstraint("(role = 'admin' AND student_id IS NULL) OR (role = 'student' AND student_id IS NOT NULL)", name="ck_users_student_id_for_role"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    username: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255))
+    role: Mapped[str] = mapped_column(String(20))
+    student_id: Mapped[str | None] = mapped_column(String(20), unique=True, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
 class UsageRecord(Base):
     __tablename__ = "usage_records"
     __table_args__ = (

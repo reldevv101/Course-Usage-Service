@@ -55,7 +55,7 @@ class CourseOut(BaseModel):
 
 
 class UsageCreate(BaseModel):
-    student_id: StudentId
+    student_id: StudentId | None = None
     course_id: str = Field(pattern=r"^[0-9a-fA-F-]{36}$")
     study_hours: Decimal = Field(ge=0, max_digits=8, decimal_places=2)
     material_accesses: int = Field(ge=0, le=2_147_483_647)
@@ -129,3 +129,35 @@ class InvoiceOut(BaseModel):
     @classmethod
     def from_invoice(cls, invoice):
         return cls.model_validate(invoice)
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=50)
+    password: str = Field(min_length=1, max_length=128)
+
+
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+
+
+class UserOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: str
+    username: str
+    role: str
+    student_id: str | None
+    is_active: bool
+    created_at: datetime
+
+
+class StudentAccountCreate(BaseModel):
+    username: str = Field(min_length=3, max_length=50, pattern=r"^[A-Za-z0-9_.-]+$")
+    password: str = Field(min_length=12, max_length=128)
+    student_id: StudentId
+
+
+class PasswordChange(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=12, max_length=128)

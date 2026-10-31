@@ -10,7 +10,7 @@ load_dotenv()
 class Settings:
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./course_usage.db")
     environment: str = os.getenv("ENVIRONMENT", "development").lower()
-    api_key: str = os.getenv("API_KEY", "")
+    jwt_secret_key: str = os.getenv("JWT_SECRET_KEY", "")
     db_pool_mode: str = os.getenv("DB_POOL_MODE", "session").lower()
     study_rate_per_hour: int = int(os.getenv("STUDY_RATE_PER_HOUR", "2000"))
     material_rate_per_access: int = int(os.getenv("MATERIAL_RATE_PER_ACCESS", "500"))

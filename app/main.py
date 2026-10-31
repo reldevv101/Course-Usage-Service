@@ -4,7 +4,7 @@ from sqlalchemy import event
 from app.config import settings
 from app.database import Base, engine
 from app import models  # noqa: F401 - register SQLAlchemy models before create_all
-from app.routers import billing, courses, usage
+from app.routers import auth, billing, courses, usage
 
 
 if engine.url.drivername.startswith("sqlite"):
@@ -26,6 +26,7 @@ app = FastAPI(
 app.include_router(courses.router)
 app.include_router(usage.router)
 app.include_router(billing.router)
+app.include_router(auth.router)
 
 
 @app.get("/health", tags=["system"])
